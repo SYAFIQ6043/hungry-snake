@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>HUNGRY SNAKE — LIVE LEADERBOARD</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;font-family:Arial,sans-serif;background:radial-gradient(circle at top,#123b68 0,#06111f 45%,#02070d 100%);color:#fff;padding:30px 15px}
+.wrap{max-width:900px;margin:auto}
+h1{text-align:center;margin:0;font-size:clamp(30px,6vw,58px);letter-spacing:2px;color:#58d7ff;text-shadow:0 0 18px rgba(88,215,255,.7)}
+.sub{text-align:center;color:#b9d7e8;margin:8px 0 25px}
+.card{background:rgba(8,24,40,.88);border:1px solid rgba(88,215,255,.35);border-radius:22px;padding:18px;box-shadow:0 0 35px rgba(0,180,255,.12)}
+table{width:100%;border-collapse:collapse;overflow:hidden}
+th,td{padding:15px 12px;text-align:left;border-bottom:1px solid rgba(255,255,255,.1)}
+th{color:#58d7ff;font-size:14px;text-transform:uppercase;letter-spacing:1px}
+td:nth-child(1),th:nth-child(1){width:80px;text-align:center}
+td:nth-child(4),th:nth-child(4){text-align:right}
+.rank{font-size:22px;font-weight:800}
+.score{font-weight:800;color:#fff;font-size:20px}
+.status{text-align:center;margin-top:14px;color:#9fc2d6;font-size:13px}
+button{display:block;margin:18px auto 0;padding:11px 20px;border:0;border-radius:999px;background:#58d7ff;color:#02111d;font-weight:800;cursor:pointer}
+@media(max-width:600px){th,td{padding:11px 7px;font-size:13px}td:nth-child(3){max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>🐍 HUNGRY SNAKE</h1>
+<div class="sub">LIVE LEADERBOARD • TOP 20</div>
+<div class="card">
+<table>
+<thead><tr><th>#</th><th>NAMA</th><th>SEKOLAH</th><th>SKOR</th></tr></thead>
+<tbody id="board"><tr><td colspan="4" style="text-align:center">Memuatkan skor...</td></tr></tbody>
+</table>
+<div class="status" id="status">Menghubungkan ke Google Sheets...</div>
+<button onclick="loadBoard()">↻ REFRESH</button>
+</div>
+</div>
+<script>
+const ENDPOINT = 'https://script.google.com/macros/s/AKfycbyny5pYowI3ZKReNZlZYYtAY1eNL5hUBqJEkjHukaEhDgLUOJ--1FpFBsS6FuP3cff3/exec';
+function esc(value){
+  return String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function render(data){
+  const rows = Array.isArray(data.scores) ? data.scores : [];
+  const board = document.getElementById('board');
+  if(!rows.length){
+    board.innerHTML = '<tr><td colspan="4" style="text-align:center">Belum ada skor.</td></tr>';
+  } else {
+    board.innerHTML = rows.map(r => `<tr>
+      <td class="rank">${r.rank}</td>
+      <td>${esc(r.nama)}</td>
+      <td>${esc(r.sekolah)}</td>
+      <td class="score">${Number(r.skor)||0}</td>
+    </tr>`).join('');
+  }
+  document.getElementById('status').textContent =
+    'Dikemas kini: ' + new Date().toLocaleTimeString('ms-MY');
+}
+function loadBoard(){
+  window.leaderboardCallback = render;
+  const old = document.getElementById('jsonp');
+  if(old) old.remove();
+  const s = document.createElement('script');
+  s.id = 'jsonp';
+  s.src = ENDPOINT + '?callback=leaderboardCallback&_=' + Date.now();
+  s.onerror = () => document.getElementById('status').textContent = 'Gagal memuatkan leaderboard.';
+  document.body.appendChild(s);
+}
+loadBoard();
+setInterval(loadBoard, 5000);
+</script>
+</body>
+</html>
