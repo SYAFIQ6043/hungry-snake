@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HUNGRY SNAKE</title>
+<style>
+*{box-sizing:border-box}body{margin:0;min-height:100vh;background:#06111f;color:#eaf7ff;font-family:Arial,sans-serif;display:flex;align-items:center;justify-content:center}
+.wrap{width:min(94vw,760px);text-align:center}.title{font-size:clamp(32px,7vw,64px);font-weight:900;letter-spacing:5px;color:#fff;text-shadow:0 0 12px #19bfff,0 0 30px #0077ff;margin:4px 0 6px}
+.sub{color:#78d9ff;margin-bottom:14px}.hud{display:flex;justify-content:space-between;gap:10px;margin:0 auto 10px;max-width:640px}.box{flex:1;background:#0b2035;border:1px solid #178bd0;border-radius:10px;padding:9px;font-weight:bold}.box span{display:block;font-size:22px;color:#57dcff}
+canvas{width:min(92vw,640px);height:min(92vw,640px);max-width:640px;max-height:640px;background:#071827;border:2px solid #168ddd;border-radius:14px;box-shadow:0 0 20px #0069aa inset,0 0 25px #004b77}
+.controls{display:grid;grid-template-columns:repeat(3,62px);justify-content:center;gap:7px;margin:14px auto}.controls button,.actions button{height:52px;border:1px solid #1aaeff;border-radius:10px;background:#0b2941;color:#eaf7ff;font-size:22px;font-weight:bold;cursor:pointer}.controls button:active,.actions button:active{transform:scale(.96);background:#124c70}.up{grid-column:2}.left{grid-column:1}.down{grid-column:2}.right{grid-column:3}.actions{display:flex;justify-content:center;gap:10px}.actions button{padding:0 22px;font-size:15px;height:46px}.msg{min-height:25px;margin-top:8px;color:#8fe8ff;font-weight:bold}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="title">HUNGRY SNAKE</div>
+  <div id="playerForm" style="max-width:520px;margin:0 auto 18px;background:#0b2035;border:1px solid #178bd0;border-radius:14px;padding:18px;text-align:left">
+    <div style="font-weight:800;color:#8fe8ff;font-size:18px;margin-bottom:12px">MAKLUMAT PEMAIN</div>
+    <label style="display:block;margin-bottom:6px;font-weight:700">Nama Penuh</label>
+    <input id="studentName" type="text" maxlength="100" placeholder="Masukkan nama penuh"
+      style="width:100%;padding:12px;border-radius:9px;border:1px solid #277fae;background:#071827;color:white;font-size:16px;margin-bottom:12px">
+    <label style="display:block;margin-bottom:6px;font-weight:700">Nama Sekolah</label>
+    <input id="schoolName" type="text" maxlength="150" placeholder="Masukkan nama sekolah"
+      style="width:100%;padding:12px;border-radius:9px;border:1px solid #277fae;background:#071827;color:white;font-size:16px;margin-bottom:14px">
+    <button id="begin" type="button" style="width:100%;height:48px;border:0;border-radius:10px;background:#0b9bd7;color:white;font-weight:900;font-size:16px;cursor:pointer">🚀 MULA BERMAIN</button>
+  </div>
+  <div class="sub">Kutip makanan • Elak halangan • Pecahkan rekod!</div>
+  <div class="hud">
+    <div class="box">SKOR<span id="score">0</span></div>
+    <div class="box">REKOD<span id="high">0</span></div>
+    <div class="box">HALANGAN<span id="obs">0</span></div>
+  </div>
+  <canvas id="game" width="640" height="640" aria-label="Permainan Hungry Snake"></canvas>
+  <div class="controls" aria-label="Kawalan">
+    <button class="up" data-d="up">▲</button>
+    <button class="left" data-d="left">◀</button>
+    <button class="down" data-d="down">▼</button>
+    <button class="right" data-d="right">▶</button>
+  </div>
+  <div class="actions">
+    <button id="start">MULA / MAIN SEMULA</button>
+    <button id="pause">PAUSE</button>
+  </div>
+  <div class="msg" id="msg">Tekan MULA untuk bermain</div>
+</div>
+<script>
+const SCORE_ENDPOINT = "https://script.google.com/macros/s/AKfycbyny5pYowI3ZKReNZlZYYtAY1eNL5hUBqJEkjHukaEhDgLUOJ--1FpFBsS6FuP3cff3/exec";
+const canvas=document.getElementById('game'),ctx=canvas.getContext('2d');
+const N=20, cell=canvas.width/N;
+let snake,food,obstacles,dir,nextDir,score,playing,paused,timer;
+let high=Number(localStorage.getItem('hungrySnakeHigh')||0);
+let playerName="", schoolName="";
+const form=document.getElementById('playerForm');
+const nameInput=document.getElementById('studentName');
+const schoolInput=document.getElementById('schoolName');
+const beginBtn=document.getElementById('begin');
+document.getElementById('high').textContent=high;
+const scoreEl=document.getElementById('score'),obsEl=document.getElementById('obs'),msg=document.getElementById('msg');
+
+function randCell(){return {x:Math.floor(Math.random()*N),y:Math.floor(Math.random()*N)}}
+function same(a,b){return a.x===b.x&&a.y===b.y}
+function freeCell(){
+  let p; do{p=randCell()}while(snake.some(s=>same(s,p))||obstacles.some(o=>same(o,p))||(food&&same(food,p))); return p;
+}
+async function saveScore(){
+  if(!playerName || !schoolName || score < 0) return;
+  try{
+    const body = new URLSearchParams({
+      nama: playerName,
+      sekolah: schoolName,
+      skor: String(score)
+    });
+    await fetch(SCORE_ENDPOINT, {
+      method: "POST",
+      mode: "no-cors",
+      headers: {"Content-Type": "application/x-www-form-urlencoded;charset=UTF-8"},
+      body: body.toString(),
+      keepalive: true
+    });
+    msg.textContent = "GAME OVER — Skor telah dihantar!";
+  }catch(e){
+    console.log("Skor tidak dapat dihantar:", e);
+    msg.textContent = "GAME OVER — skor disimpan pada paparan game.";
+  }
+}
+beginBtn.addEventListener("click",()=>{
+  playerName=nameInput.value.trim();
+  schoolName=schoolInput.value.trim();
+  if(!playerName || !schoolName){
+    msg.textContent="Sila isi Nama Penuh dan Nama Sekolah dahulu.";
+    return;
+  }
+  form.style.display="none";
+  reset();
+});
+function reset(){
+  snake=[{x:10,y:10},{x:9,y:10},{x:8,y:10}]; dir={x:1,y:0}; nextDir={x:1,y:0};
+  obstacles=[];score=0;food=freeCell();playing=true;paused=false;update();msg.textContent='Cari makanan dan elakkan halangan!';
+  clearInterval(timer);timer=setInterval(tick,125);draw();
+}
+function addObstacle(){
+  const p=freeCell(); obstacles.push(p); obsEl.textContent=obstacles.length;
+}
+function update(){scoreEl.textContent=score;obsEl.textContent=obstacles.length}
+function end(){
+  playing=false;clearInterval(timer);
+  if(score>high){high=score;localStorage.setItem('hungrySnakeHigh',high);document.getElementById('high').textContent=high}
+  msg.textContent='GAME OVER — Skor: '+score+' • Tekan MULA untuk cuba lagi'; saveScore();
+  draw(true);
+}
+function tick(){
+  if(!playing||paused)return;
+  dir=nextDir;
+  const head={x:snake[0].x+dir.x,y:snake[0].y+dir.y};
+  if(head.x<0||head.x>=N||head.y<0||head.y>=N||snake.some(s=>same(s,head))||obstacles.some(o=>same(o,head))){end();return}
+  snake.unshift(head);
+  if(same(head,food)){
+    score++;
+    if(score%15===0)addObstacle();
+    food=freeCell();update();
+  }else snake.pop();
+  draw();
+}
+function draw(gameover=false){
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  ctx.fillStyle='#071827';ctx.fillRect(0,0,canvas.width,canvas.height);
+  ctx.strokeStyle='rgba(24,140,210,.12)';ctx.lineWidth=1;
+  for(let i=0;i<=N;i++){ctx.beginPath();ctx.moveTo(i*cell,0);ctx.lineTo(i*cell,canvas.height);ctx.stroke();ctx.beginPath();ctx.moveTo(0,i*cell);ctx.lineTo(canvas.width,i*cell);ctx.stroke()}
+  // food
+  ctx.fillStyle='#fff';ctx.shadowColor='#25d9ff';ctx.shadowBlur=18;ctx.beginPath();ctx.arc(food.x*cell+cell/2,food.y*cell+cell/2,cell*.27,0,Math.PI*2);ctx.fill();ctx.shadowBlur=0;
+  // obstacles
+  obstacles.forEach(o=>{ctx.fillStyle='#a7b6c4';ctx.fillRect(o.x*cell+6,o.y*cell+6,cell-12,cell-12);ctx.strokeStyle='#ffffff';ctx.strokeRect(o.x*cell+6,o.y*cell+6,cell-12,cell-12)});
+  // snake
+  snake.forEach((s,i)=>{ctx.fillStyle=i===0?'#67e8ff':'#159bd2';ctx.shadowColor='#0bbcff';ctx.shadowBlur=i===0?12:5;ctx.beginPath();ctx.roundRect(s.x*cell+3,s.y*cell+3,cell-6,cell-6,8);ctx.fill();ctx.shadowBlur=0});
+  if(gameover){ctx.fillStyle='rgba(0,0,0,.55)';ctx.fillRect(0,0,canvas.width,canvas.height);ctx.fillStyle='#fff';ctx.font='900 46px Arial';ctx.textAlign='center';ctx.fillText('GAME OVER',canvas.width/2,canvas.height/2)}
+}
+function setDir(d){
+  const map={up:{x:0,y:-1},down:{x:0,y:1},left:{x:-1,y:0},right:{x:1,y:0}};const nd=map[d];
+  if(nd && !(nd.x===-dir.x&&nd.y===-dir.y))nextDir=nd;
+}
+document.addEventListener('keydown',e=>{
+  const m={ArrowUp:'up',w:'up',ArrowDown:'down',s:'down',ArrowLeft:'left',a:'left',ArrowRight:'right',d:'right'};
+  if(m[e.key]){e.preventDefault();setDir(m[e.key])}
+  if(e.key===' '&&playing){paused=!paused;msg.textContent=paused?'PAUSED — tekan PAUSE untuk sambung':'Cari makanan dan elakkan halangan!'}
+});
+document.querySelectorAll('[data-d]').forEach(b=>b.addEventListener('click',()=>setDir(b.dataset.d)));
+document.getElementById('start').addEventListener('click',reset);
+document.getElementById('pause').addEventListener('click',()=>{
+  if(!playing)return;paused=!paused;msg.textContent=paused?'PAUSED — tekan PAUSE untuk sambung':'Cari makanan dan elakkan halangan!';
+});
+playing=false;clearInterval(timer);msg.textContent='Isi maklumat pemain untuk bermula';draw();
+</script>
+</body>
+</html>
